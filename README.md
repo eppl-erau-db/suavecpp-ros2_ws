@@ -38,6 +38,7 @@ Then in a separate terminal run
 ```
 ros
 cd ~/Dev/suavecpp-ros2_ws
+rosdep install --from-paths src --ignore-src -r -y
 colcon build
 source ./install/setup.bash
 ros2 run suave_launch suave_main
