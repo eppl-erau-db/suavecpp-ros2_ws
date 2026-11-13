@@ -33,6 +33,5 @@ suave_log << #act << ": " << act_result << std::endl;\
 
 #define try_action(act) try_mav(act, Action::Result::Success)
 #define try_offboard(act) try_mav(act, Offboard::Result::Success)
-#define try_tune(act) try_mav(act, Tune::Result::Success)
 
 #endif //CONTROLLERMACROS_H

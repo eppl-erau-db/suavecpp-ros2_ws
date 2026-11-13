@@ -2,7 +2,6 @@
 build/
 install/
 log/
-launch/__pycache__
 nohup.out
 src/suave_launch/cmake-build-debug
-.idea/
+__pycache__/

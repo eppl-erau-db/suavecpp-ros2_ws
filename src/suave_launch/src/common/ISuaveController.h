@@ -1,6 +1,7 @@
 #ifndef ISUAVECONTROLLER_H
 #define ISUAVECONTROLLER_H
 
+#include <cstdint>  // MAVSDK 1.4 headers rely on it transitively
 #include <mavsdk/mavsdk.h>
 
 class ISuaveController

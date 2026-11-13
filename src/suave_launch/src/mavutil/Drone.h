@@ -4,26 +4,24 @@
 
 #ifndef DRONE_H
 #define DRONE_H
-#include <system.h>
-#include <thread>
-#include <plugins/action/action.h>
-#include <tuple>
+#include <cmath>
+#include <cstdint>
+#include <memory>
 #include <optional>
+#include <string>
+#include <thread>
 
+#include <system.h>
+#include <plugins/action/action.h>
 #include <plugins/offboard/offboard.h>
 #include <plugins/telemetry/telemetry.h>
-#include <plugins/param/param.h>
-#include <plugins/tune/tune.h>
-
-#include <rclcpp/rclcpp.hpp>
-#include <geometry_msgs/msg/quaternion.hpp>
-#include <geometry_msgs/msg/vector3.hpp>
 
 #include "TelemetryProperty.h"
 #include "../util/Util.h"
 
 using namespace mavsdk;
 
+// Thin wrapper around a MAVSDK System: Action, Offboard and cached Telemetry.
 class Drone {
 public:
     explicit Drone(std::shared_ptr<System> system);
@@ -32,8 +30,6 @@ public:
     Action& action() { return m_action; }
     Offboard& offboard() { return m_offboard; }
     Telemetry& telemetry() { return m_telemetry; }
-    Param& param() { return m_param; }
-    Tune& tune() { return m_tune; }
 
     [[nodiscard]]
     double initial_heading_rad() const { return m_initial_heading_rad; }
@@ -55,6 +51,11 @@ public:
         return m_in_air.get().unwrap();
     }
     [[nodiscard]]
+    bool armed() const
+    {
+        return m_armed.get().unwrap();
+    }
+    [[nodiscard]]
     Telemetry::Quaternion get_quaternion() const
     {
         return m_quaternion.get().unwrap();
@@ -63,25 +64,20 @@ public:
     std::string get_quaternion_string() const;
     std::string get_ned_position_string() const;
 
+    // Zero body-velocity setpoint; must be sent before offboard().start()
     Offboard::Result offboard_setpoint();
 
-    // Blocking until next position update
+    // Position relative to the current position (blocks until the next position update)
     Offboard::Result set_relative_position_ned(const float& n, const float& e, const float& d);
+
+    // Position relative to the stored local setpoint (captured by set_local_position_setpoint)
     void set_local_position_setpoint();
-    Offboard::Result set_local_position_ned(double n, double e, double d);  
+    Offboard::Result set_local_position_ned(double n, double e, double d);
 
     Offboard::Result offboard_land();
     Offboard::Result offboard_wait_for_land();
 
     Offboard::Result offboard_hold();
-
-    // Tunes
-    Tune::Result play_waiting_tune();
-    Tune::Result play_ready_tune();
-
-    void set_heading_callback(TelemetryProperty<Telemetry::Heading>::TCallback callback);
-    void init_ros_publisher();
-    void publish_telemetry();
 
 private:
     // Mavsdk
@@ -89,30 +85,25 @@ private:
     Action m_action{*m_system};
     Offboard m_offboard{*m_system};
     Telemetry m_telemetry{*m_system};
-    Param m_param{*m_system};
-    Tune m_tune{*m_system};
 
     // Telemetry Properties
     TelemetryProperty<Telemetry::Heading> m_heading {m_telemetry, &Telemetry::subscribe_heading};
     TelemetryProperty<bool> m_in_air {m_telemetry, &Telemetry::subscribe_in_air};
+    TelemetryProperty<bool> m_armed {m_telemetry, &Telemetry::subscribe_armed};
     TelemetryProperty<Telemetry::PositionVelocityNed> m_position_velocity_ned {m_telemetry, &Telemetry::subscribe_position_velocity_ned};
     TelemetryProperty<Telemetry::EulerAngle> m_attitude_euler {m_telemetry, &Telemetry::subscribe_attitude_euler};
     TelemetryProperty<Telemetry::Quaternion> m_quaternion {m_telemetry, &Telemetry::subscribe_attitude_quaternion};
 
     // Misc
     double m_initial_heading_rad{ NAN };
-    struct LocalPosition 
+    struct LocalPosition
     {
-        float north; 
-        float east; 
+        float north;
+        float east;
         float down;
         float yaw;
     };
     std::optional<LocalPosition> m_local_setpoint{};
-    
-    rclcpp::Node::SharedPtr m_ros_node;
-    rclcpp::Publisher<geometry_msgs::msg::Quaternion>::SharedPtr m_quaternion_publisher;
-    rclcpp::Publisher<geometry_msgs::msg::Vector3>::SharedPtr m_ned_position_publisher;
 };
 
 #endif //DRONE_H

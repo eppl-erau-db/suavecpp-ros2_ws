@@ -1,5 +1,6 @@
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, SetEnvironmentVariable
+from launch.actions import DeclareLaunchArgument
+from launch.conditions import IfCondition
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
@@ -20,6 +21,10 @@ def generate_launch_description():
 
     return LaunchDescription([
 
+        # rtabmap_viz needs a display (ssh -YC); off by default for headless flights
+        DeclareLaunchArgument('viz', default_value='false',
+                              description='Start the rtabmap_viz GUI'),
+
         # Nodes to launch
         Node(
             package='rtabmap_odom', executable='rgbd_odometry', output='screen',
@@ -35,7 +40,8 @@ def generate_launch_description():
         Node(
             package='rtabmap_viz', executable='rtabmap_viz', output='screen',
             parameters=parameters,
-            remappings=remappings),
+            remappings=remappings,
+            condition=IfCondition(LaunchConfiguration('viz'))),
 
         # Compute quaternion of the IMU
         Node(

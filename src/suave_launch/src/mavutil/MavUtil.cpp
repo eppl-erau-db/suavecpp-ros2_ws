@@ -6,6 +6,8 @@
 
 #include <chrono>
 #include <iostream>
+#include <sstream>
+#include <stdexcept>
 #include <thread>
 
 #include "../util/Util.h"
@@ -20,12 +22,18 @@ std::string get_env_var( std::string const & key ) {
     return retval;
 }
 
+bool is_sitl_connection()
+{
+    const auto id = get_env_var("SUAVE_MAVLINK_SERIAL_ID");
+    return id == "SITL" || id.size() <= 2;
+}
+
 std::shared_ptr<mavsdk::System> connectToPX4(mavsdk::Mavsdk& m_mavsdk)
 {
-    const auto& id = get_env_var("SUAVE_MAVLINK_SERIAL_ID");
+    const auto id = get_env_var("SUAVE_MAVLINK_SERIAL_ID");
 
     std::string connection_url{};
-    if (id  == "SITL" || id.size() <= 2)
+    if (is_sitl_connection())
     {
         connection_url = "udp://:14540";
     }

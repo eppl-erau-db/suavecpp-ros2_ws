@@ -10,42 +10,10 @@
 
 Drone::Drone(std::shared_ptr<System> system): m_system(std::move(system))
 {
+    // VIOBridge rotates the camera frame into NED with this angle; 0 assumes the drone
+    // starts facing the direction you want to be +North in the map.
     m_initial_heading_rad = 0;
     suave_log << "Initial heading: " << m_initial_heading_rad << " rad\n";
-}
-
-void Drone::init_ros_publisher() {
-    m_ros_node = std::make_shared<rclcpp::Node>("drone_telemetry_publisher");
-    m_quaternion_publisher = m_ros_node->create_publisher<geometry_msgs::msg::Quaternion>("drone/quaternion", 10);
-    m_ned_position_publisher = m_ros_node->create_publisher<geometry_msgs::msg::Vector3>("drone/ned_position", 10);
-    RCLCPP_INFO(m_ros_node->get_logger(), "ROS publishers initialized.");
-}
-
-void Drone::publish_telemetry() {
-    if (!m_ros_node) {
-        suave_err << "ROS node not initialized. Call init_ros_publisher() first." << std::endl;
-        return;
-    }
-    // publishes quaternion and ned position
-    auto quaternion_msg = geometry_msgs::msg::Quaternion();
-    auto ned_position_msg = geometry_msgs::msg::Vector3();
-
-    auto quaternion = m_quaternion.get().unwrap();
-    quaternion_msg.w = quaternion.w;
-    quaternion_msg.x = quaternion.x;
-    quaternion_msg.y = quaternion.y;
-    quaternion_msg.z = quaternion.z;
-
-    auto position_velocity_ned = m_position_velocity_ned.get().unwrap();
-    auto position = position_velocity_ned.position;
-    ned_position_msg.x = position.north_m;
-    ned_position_msg.y = position.east_m;
-    ned_position_msg.z = position.down_m;
-
-    m_quaternion_publisher->publish(quaternion_msg);
-    m_ned_position_publisher->publish(ned_position_msg);
-    //RCLCPP_INFO(m_ros_node->get_logger(), "Published Quaternion: [w: %f, x: %f, y: %f, z: %f]", quaternion_msg.w, quaternion_msg.x, quaternion_msg.y, quaternion_msg.z);
-    //RCLCPP_INFO(m_ros_node->get_logger(), "Published NED Position: [north: %f, east: %f, down: %f]", ned_position_msg.x, ned_position_msg.y, ned_position_msg.z);
 }
 
 std::string Drone::get_quaternion_string() const
@@ -88,11 +56,13 @@ Offboard::Result Drone::set_local_position_ned(double n, double e, double d)
 {
     if (!m_local_setpoint)
     {
-        const auto [north_m, east_m, down_m] = m_position_velocity_ned.wait_for_next().unwrap().position;
-        const auto yaw = m_attitude_euler.wait_for_next(1).unwrap().yaw_deg;
-        m_local_setpoint = { north_m, east_m, down_m, yaw };
+        set_local_position_setpoint();
     }
-    return offboard().set_position_ned({ m_local_setpoint->north + n, m_local_setpoint->east + e, m_local_setpoint->down + d, m_local_setpoint->yaw });
+    return offboard().set_position_ned({
+        static_cast<float>(m_local_setpoint->north + n),
+        static_cast<float>(m_local_setpoint->east + e),
+        static_cast<float>(m_local_setpoint->down + d),
+        m_local_setpoint->yaw });
 }
 
 Offboard::Result Drone::offboard_land()
@@ -106,19 +76,24 @@ Offboard::Result Drone::offboard_wait_for_land()
     auto land_result = offboard_land();
     if (land_result != Offboard::Result::Success)
     {
+        suave_err << "Offboard descent failed (" << land_result << "), switching to PX4 land mode" << std::endl;
+        action().land();
         return land_result;
     }
 
-    // Wait for drone to land
+    // Descend at 0.5 m/s until PX4 reports landed. 30 s covers ~15 m of descent.
     int elapse_sec = 0;
-    constexpr auto MAX_ELAPSE = 10;
+    constexpr auto MAX_ELAPSE = 30;
     while (in_air())
     {
         suave_log << "Waiting for drone to land, elapse_sec: " << elapse_sec << std::endl;
 
         if (elapse_sec >= MAX_ELAPSE)
         {
-            break;
+            // Never disarm while airborne: hand over to PX4's own landing instead.
+            suave_err << "Still in air after " << MAX_ELAPSE << " s, switching to PX4 land mode" << std::endl;
+            action().land();
+            return land_result;
         }
 
         sleep(1)
@@ -137,26 +112,4 @@ Offboard::Result Drone::offboard_wait_for_land()
 Offboard::Result Drone::offboard_hold()
 {
     return set_relative_position_ned(0, 0, 0);
-}
-
-Tune::Result Drone::play_waiting_tune()
-{
-    Tune::SongElement note = Tune::SongElement::NoteC;
-    Tune::TuneDescription waiting_tune{{note, note, note}, 90};
-    return tune().play_tune(waiting_tune);
-}
-
-Tune::Result Drone::play_ready_tune()
-{
-    Tune::SongElement c = Tune::SongElement::NoteC;
-    Tune::SongElement d = Tune::SongElement::NoteD;
-    Tune::SongElement e = Tune::SongElement::NoteE;
-    Tune::SongElement b = Tune::SongElement::NoteB;
-    Tune::TuneDescription ready_tune{{c, d, e, b}, 90};
-    return tune().play_tune(ready_tune);
-}
-
-void Drone::set_heading_callback(TelemetryProperty<Telemetry::Heading>::TCallback callback)
-{
-    m_heading.set_callback(callback);
 }

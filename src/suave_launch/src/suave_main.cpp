@@ -1,19 +1,17 @@
 #include <csignal>
-#include <rclcpp/utilities.hpp>
-#include <chrono>
-#include <thread>
+#include <memory>
+#include <rclcpp/rclcpp.hpp>
 
-#include "controllers/SuaveMaskingController.h"
-#include "controllers/SuaveVIOTestFlight.h"
-#include "controllers/SuaveMaskingPathPlanner.h"
-#include "mavutil/Drone.h"
+#include "controllers/SuaveFlightController.h"
+#include "util/Util.h"
 
-std::unique_ptr<SuavePathPlanner> s_controller;
+std::unique_ptr<SuaveFlightController> s_controller;
 
 void signal_handler(int sig)
 {
     suave_warn << "Signal received: " << sig << std::endl;
-    if (s_controller) {
+    if (s_controller)
+    {
         s_controller->shutdown();
     }
     rclcpp::shutdown();
@@ -21,22 +19,27 @@ void signal_handler(int sig)
     exit(0);
 }
 
-int main(int argc, char **argv)
+int main(int argc, char** argv)
 {
     suave_log << "Starting suave_main" << std::endl;
     rclcpp::init(argc, argv);
-    std::vector<int> signals = {SIGINT, SIGTERM, SIGQUIT};
-    for (const auto sig : signals)
+    for (const auto sig : { SIGINT, SIGTERM, SIGQUIT })
     {
         std::signal(sig, signal_handler);
     }
-    try {
-        s_controller = std::make_unique<SuavePathPlanner>();
+
+    try
+    {
+        s_controller = std::make_unique<SuaveFlightController>();
         s_controller->start();
-    } catch (const std::exception &e) {
+    }
+    catch (const std::exception& e)
+    {
         suave_err << "Caught exception: " << e.what() << std::endl;
     }
-    if (s_controller) {
+
+    if (s_controller)
+    {
         s_controller->shutdown();
     }
     rclcpp::shutdown();

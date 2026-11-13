@@ -1,8 +1,6 @@
-# init setup
-mkdir -p ~/Data/SuaveMaskingPid
-sudo apt install openssh-server -y # ssh
-sudo apt install solaar -y # drivers for the keyboard+touchpad
-sudo apt install python3-pip -y
+# One-time setup for the SUAVE companion computer (Ubuntu 22.04 + ROS 2 Humble).
+# Run from this directory:  cd setup && source setup.bash
+sudo apt install openssh-server -y  # ssh
 
 # install ros2 (https://docs.ros.org/en/humble/Installation/Ubuntu-Install-Debs.html)
 locale  # check for UTF-8
@@ -36,19 +34,15 @@ sudo apt-get install librealsense2-dev -y
 sudo apt-get install librealsense2-dbg -y
 sudo apt install ros-humble-realsense2-* -y
 
-# rtabmaps_ros
+# VIO: rtabmap + IMU orientation filter used by launch/suave_slam.py
 sudo apt install ros-humble-rtabmap-ros -y
+sudo apt install ros-humble-imu-filter-madgwick -y
 
-# other tools
-sudo apt install libpcl-dev -y
+# MAVSDK (PX4 interface)
 sudo dpkg -i libmavsdk-dev_1.4.16_ubuntu20.04_amd64.deb
 sudo apt install net-tools -y
 
-# python deps
-pip install simple_pid
-pip install opencv-python
-
-# add persistant environment variable for mavlink serial connection
+# add persistent environment variable for mavlink serial connection
 perl find_ftdi_id.pl
 
 sudo usermod -a -G dialout $USER
